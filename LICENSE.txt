@@ -1,0 +1,36 @@
+TIDY — FREEWARE LICENSE
+Copyright (c) 2026 Fdevelopment. All rights reserved.
+
+This software ("Tidy") is provided free of charge to end users.
+
+PERMITTED USES
+- You may install and use Tidy on any number of computers you own or operate,
+  for personal or internal business purposes.
+- You may make backup copies of the binary distribution.
+
+RESTRICTIONS
+- You may NOT redistribute, resell, sublicense or repackage the binary,
+  in whole or in part, without prior written permission from Fdevelopment.
+- You may NOT modify, decompile, disassemble or reverse-engineer the binary,
+  except to the extent such activity is expressly permitted by applicable law.
+- You may NOT include Tidy, or any portion of it, in another product or service
+  without prior written permission from Fdevelopment.
+- Source code is not distributed and remains the exclusive property of
+  Fdevelopment.
+
+DATA & PRIVACY
+- Tidy runs entirely on your machine. No telemetry, analytics or file content
+  is sent to any server. Trained models and metadata are stored locally in
+  your user data directory.
+
+NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+CONTACT
+Commercial inquiries: contact@fdevelopment.fr

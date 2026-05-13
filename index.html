@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tidy — puts things where they belong</title>
+<meta name="description" content="A tiny desktop daemon that learns how you organize files and helps put them in the right place. Local, free, cross-platform.">
+<meta property="og:title" content="Tidy — puts things where they belong">
+<meta property="og:description" content="A tiny desktop daemon that learns how you organize files. Local. Free. Cross-platform.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..800,0..100,0..1;1,9..144,300..800,0..100,0..1&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='12' y='14' width='40' height='8' rx='2' fill='%231a1a20'/%3E%3Crect x='28' y='22' width='8' height='28' rx='2' fill='%231a1a20'/%3E%3Ccircle cx='49' cy='51' r='7' fill='%23c44e2c'/%3E%3C/svg%3E">
+
+<style>
+:root {
+  --paper: #f4efe5;
+  --paper-2: #ebe4d6;
+  --ink: #1a1a20;
+  --ink-soft: #4d4d56;
+  --ink-faint: #8a8690;
+  --hairline: rgba(26, 26, 32, 0.12);
+  --hairline-strong: rgba(26, 26, 32, 0.24);
+  --clay: #c44e2c;
+  --clay-deep: #9c3d22;
+  --sand: #d9a47e;
+  --max-w: 1240px;
+  --pad: clamp(20px, 4vw, 56px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Paper grain overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' seed='5'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.13  0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Typographic basics */
+h1, h2, h3, h4 {
+  font-family: 'Fraunces', 'Times New Roman', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  font-variation-settings: "opsz" 144, "SOFT" 50, "WONK" 0;
+}
+h1 em, h2 em { font-style: italic; font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1; color: var(--clay); }
+
+.mono { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; }
+
+.container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+  position: relative;
+  z-index: 2;
+}
+
+/* ----------------- HEADER ----------------- */
+
+header.site {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hairline);
+}
+header.site .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.brand-mark {
+  width: 28px; height: 28px;
+  position: relative;
+}
+.brand-mark svg { display: block; }
+.brand-name {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-variation-settings: "opsz" 30, "SOFT" 50;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+nav.primary {
+  display: flex; align-items: center; gap: 28px;
+}
+nav.primary a {
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14.5px;
+  letter-spacing: 0.01em;
+  position: relative;
+  padding: 4px 0;
+  transition: color .2s ease;
+}
+nav.primary a:hover { color: var(--clay); }
+nav.primary a::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: -2px; height: 1px;
+  background: var(--clay);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .25s ease;
+}
+nav.primary a:hover::after { transform: scaleX(1); }
+
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.lang-toggle button {
+  background: none; border: 0; color: var(--ink-soft);
+  padding: 6px 12px; cursor: pointer;
+  text-transform: uppercase;
+}
+.lang-toggle button.active {
+  background: var(--ink); color: var(--paper);
+}
+
+/* ----------------- HERO ----------------- */
+
+.hero {
+  padding: clamp(60px, 9vw, 120px) 0 clamp(60px, 7vw, 90px);
+  position: relative;
+}
+.hero .grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(32px, 5vw, 80px);
+  align-items: center;
+}
+@media (max-width: 880px) {
+  .hero .grid { grid-template-columns: 1fr; }
+}
+
+.hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 22px;
+}
+.hero .eyebrow .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--clay);
+  animation: pulse 2.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.hero h1 {
+  font-size: clamp(46px, 7.5vw, 92px);
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  margin-bottom: 28px;
+  font-weight: 350;
+}
+.hero h1 .line { display: block; }
+
+.hero p.lede {
+  font-size: clamp(17px, 1.4vw, 19px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 460px;
+  margin-bottom: 36px;
+}
+
+.cta-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Geist', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 14px 22px;
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-primary:hover {
+  background: var(--clay);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -8px rgba(196, 78, 44, 0.5);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+.btn-ghost:hover { border-color: var(--ink); }
+
+.version-pill {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  padding: 4px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  margin-left: 4px;
+}
+
+/* Hero illustration */
+.hero-art {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  max-width: 520px;
+  justify-self: end;
+}
+@media (max-width: 880px) { .hero-art { justify-self: center; max-width: 380px; } }
+.hero-art svg { display: block; width: 100%; height: 100%; }
+
+/* ----------------- DECORATION BAR ----------------- */
+
+.marquee-bar {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  overflow: hidden;
+  background: var(--paper-2);
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-variation-settings: "opsz" 50, "SOFT" 100;
+  color: var(--ink-soft);
+}
+.marquee {
+  display: flex;
+  gap: 60px;
+  padding: 22px 0;
+  animation: scroll 38s linear infinite;
+  white-space: nowrap;
+  width: max-content;
+}
+.marquee span { font-size: 22px; display: inline-flex; align-items: center; gap: 60px; }
+.marquee .ornament { color: var(--clay); }
+@keyframes scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ----------------- FEATURES ----------------- */
+
+section.features {
+  padding: clamp(80px, 10vw, 140px) 0;
+  position: relative;
+}
+.section-head {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 40px;
+  margin-bottom: 70px;
+  align-items: end;
+}
+@media (max-width: 760px) { .section-head { grid-template-columns: 1fr; } }
+.section-head .number {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.section-head h2 {
+  font-size: clamp(38px, 5.5vw, 62px);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--hairline);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+@media (max-width: 880px) { .features-grid { grid-template-columns: 1fr; } }
+.feature {
+  background: var(--paper);
+  padding: 44px 36px 48px;
+  position: relative;
+  transition: background .25s ease;
+}
+.feature:hover { background: var(--paper-2); }
+.feature .step {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--clay);
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.feature .icon {
+  margin-bottom: 24px;
+  height: 56px;
+}
+.feature h3 {
+  font-size: 30px;
+  line-height: 1.05;
+  margin-bottom: 14px;
+  font-variation-settings: "opsz" 50, "SOFT" 30;
+}
+.feature p {
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  max-width: 32ch;
+}
+
+/* ----------------- HOW IT WORKS ----------------- */
+
+section.how {
+  padding: clamp(80px, 10vw, 140px) 0;
+  background: var(--ink);
+  color: var(--paper);
+  position: relative;
+}
+section.how .section-head .number { color: rgba(244, 239, 229, 0.45); }
+section.how h2 { color: var(--paper); }
+section.how h2 em { color: var(--sand); }
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  margin-top: 50px;
+}
+@media (max-width: 880px) { .how-steps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 540px) { .how-steps { grid-template-columns: 1fr; } }
+
+.how-step {
+  border-top: 1px solid rgba(244, 239, 229, 0.15);
+  padding-top: 22px;
+}
+.how-step .index {
+  font-family: 'Fraunces', serif;
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 14px;
+  color: var(--sand);
+  font-variation-settings: "opsz" 144, "SOFT" 100;
+}
+.how-step h4 {
+  color: var(--paper);
+  font-size: 19px;
+  margin-bottom: 8px;
+  font-family: 'Geist', sans-serif;
+  font-weight: 500;
+}
+.how-step p {
+  color: rgba(244, 239, 229, 0.7);
+  font-size: 15px;
+}
+
+/* ----------------- DOWNLOAD ----------------- */
+
+section.download {
+  padding: clamp(80px, 10vw, 140px) 0;
+}
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 50px;
+}
+@media (max-width: 880px) { .download-grid { grid-template-columns: 1fr; } }
+
+.dl-card {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+  padding: 32px 28px 28px;
+  border-radius: 6px;
+  background: var(--paper);
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.dl-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-3px);
+}
+.dl-card::after {
+  content: "↓";
+  position: absolute;
+  top: 24px; right: 28px;
+  font-size: 22px;
+  color: var(--ink-faint);
+  transition: color .2s ease, transform .2s ease;
+}
+.dl-card:hover::after {
+  color: var(--clay);
+  transform: translateY(3px);
+}
+.dl-card .os-glyph {
+  height: 46px;
+  margin-bottom: 22px;
+  color: var(--ink);
+}
+.dl-card h4 {
+  font-family: 'Geist', sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+.dl-card .meta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.dl-note {
+  margin-top: 28px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  text-align: center;
+  max-width: 580px;
+  margin-left: auto; margin-right: auto;
+}
+.dl-note a { color: var(--clay); text-decoration: none; border-bottom: 1px dotted var(--clay); }
+
+/* ----------------- WHY / PRIVACY ----------------- */
+
+section.why {
+  padding: clamp(80px, 10vw, 140px) 0;
+  background: var(--paper-2);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.why-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+@media (max-width: 760px) { .why-grid { grid-template-columns: 1fr; } }
+.why-grid h2 {
+  font-size: clamp(34px, 4.5vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.why-grid p {
+  color: var(--ink-soft);
+  font-size: 17px;
+  margin-bottom: 14px;
+}
+.why-grid p:last-of-type { margin-bottom: 0; }
+.signature {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  margin-top: 22px;
+  color: var(--clay);
+  font-size: 17px;
+  font-variation-settings: "opsz" 50, "SOFT" 100, "WONK" 1;
+}
+
+/* ----------------- FOOTER ----------------- */
+
+footer.site {
+  padding: 50px 0 40px;
+  border-top: 1px solid var(--hairline);
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+footer.site .row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+}
+footer.site a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  margin-right: 18px;
+}
+footer.site a:hover { color: var(--clay); }
+footer.site .mono { letter-spacing: 0.05em; font-size: 12.5px; }
+
+/* ----------------- FADE-IN ON SCROLL ----------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+.reveal.d1 { transition-delay: .08s; }
+.reveal.d2 { transition-delay: .16s; }
+.reveal.d3 { transition-delay: .24s; }
+.reveal.d4 { transition-delay: .32s; }
+
+/* SVG illustration animations */
+@keyframes glide-1 {
+  0%, 6% { transform: translate(0, 0); opacity: 0; }
+  10%   { opacity: 1; }
+  45%   { transform: translate(150px, -10px); opacity: 1; }
+  55%, 100% { transform: translate(150px, -10px); opacity: 0; }
+}
+@keyframes glide-2 {
+  0%, 30% { transform: translate(0, 0); opacity: 0; }
+  34%    { opacity: 1; }
+  70%    { transform: translate(150px, 40px); opacity: 1; }
+  80%, 100% { transform: translate(150px, 40px); opacity: 0; }
+}
+@keyframes glide-3 {
+  0%, 55% { transform: translate(0, 0); opacity: 0; }
+  59%   { opacity: 1; }
+  90%   { transform: translate(150px, 90px); opacity: 1; }
+  98%, 100% { transform: translate(150px, 90px); opacity: 0; }
+}
+.file-glide-1 { animation: glide-1 7.5s ease-in-out infinite; }
+.file-glide-2 { animation: glide-2 7.5s ease-in-out infinite; }
+.file-glide-3 { animation: glide-3 7.5s ease-in-out infinite; }
+@keyframes wobble {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(2deg); }
+}
+.folder-glow { transform-origin: center; }
+@keyframes glow {
+  0%, 100% { fill-opacity: 1; }
+  50%      { fill-opacity: 0.85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-glide-1, .file-glide-2, .file-glide-3 { animation: none; opacity: 0.6; }
+  .marquee { animation: none; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="container">
+    <div class="row">
+      <a class="brand" href="#top">
+        <span class="brand-mark">
+          <svg viewBox="0 0 64 64" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="14" width="40" height="8" rx="2" fill="var(--ink)"/>
+            <rect x="28" y="22" width="8" height="28" rx="2" fill="var(--ink)"/>
+            <circle cx="49" cy="51" r="7" fill="var(--clay)"/>
+          </svg>
+        </span>
+        <span class="brand-name">Tidy</span>
+      </a>
+      <nav class="primary">
+        <a href="#features" data-en="What it does" data-fr="Ce qu'il fait">What it does</a>
+        <a href="#how" data-en="How it works" data-fr="Comment ça marche">How it works</a>
+        <a href="#download" data-en="Download" data-fr="Télécharger">Download</a>
+        <a href="https://github.com/fdevelopment-department-ai/tidy-releases" target="_blank" rel="noopener">GitHub ↗</a>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button data-lang="en" class="active">EN</button>
+          <button data-lang="fr">FR</button>
+        </div>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<a id="top"></a>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="container">
+    <div class="grid">
+      <div>
+        <p class="eyebrow reveal in">
+          <span class="dot"></span>
+          <span data-en="Local · Free · Cross-platform" data-fr="Local · Gratuit · Multi-plateforme">Local · Free · Cross-platform</span>
+        </p>
+        <h1 class="reveal in d1">
+          <span class="line" data-en="Tidy puts" data-fr="Tidy range">Tidy puts</span>
+          <span class="line" data-en="things " data-fr="vos fichiers">things </span>
+          <span class="line"><em data-en="where they belong." data-fr="à leur place.">where they belong.</em></span>
+        </h1>
+        <p class="lede reveal in d2"
+           data-en="A tiny desktop daemon that watches your Downloads folder, learns from how you organize files, and quietly suggests where new ones should go. No cloud. No telemetry. Just you and your model."
+           data-fr="Un petit démon de bureau qui surveille votre dossier Téléchargements, apprend votre façon de ranger, et suggère discrètement où placer les nouveaux fichiers. Pas de cloud. Pas de télémétrie. Juste vous et votre modèle.">
+          A tiny desktop daemon that watches your Downloads folder, learns from how you organize files, and quietly suggests where new ones should go. No cloud. No telemetry. Just you and your model.
+        </p>
+        <div class="cta-row reveal in d3">
+          <a class="btn btn-primary" href="#download">
+            <span data-en="Download" data-fr="Télécharger">Download</span>
+            <span aria-hidden="true">→</span>
+          </a>
+          <a class="btn btn-ghost" href="#how">
+            <span data-en="How it works" data-fr="Comment ça marche">How it works</span>
+          </a>
+          <span class="version-pill mono" id="version-pill">v0.1.0</span>
+        </div>
+      </div>
+
+      <!-- ===== Hero illustration: files flying into folders ===== -->
+      <div class="hero-art reveal in d2">
+        <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Files flowing from Downloads into organized folders">
+          <!-- Background grid (subtle) -->
+          <defs>
+            <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+              <circle cx="1.2" cy="1.2" r="1.2" fill="rgba(26,26,32,0.10)"/>
+            </pattern>
+            <linearGradient id="ink-fade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#1a1a20" stop-opacity="0.04"/>
+              <stop offset="1" stop-color="#1a1a20" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <rect width="520" height="520" fill="url(#dots)"/>
+
+          <!-- ===== Downloads stack (left) ===== -->
+          <g transform="translate(30, 100)">
+            <text x="0" y="-12" font-family="Geist Mono, monospace" font-size="11" letter-spacing="2.5" fill="#8a8690" text-transform="uppercase">DOWNLOADS</text>
+            <!-- stack of files -->
+            <g transform="translate(0, 0)">
+              <rect x="0" y="40" width="140" height="36" rx="3" fill="#ebe4d6" stroke="#1a1a20" stroke-opacity="0.4"/>
+              <rect x="4" y="34" width="140" height="36" rx="3" fill="#f4efe5" stroke="#1a1a20" stroke-opacity="0.5"/>
+              <rect x="8" y="28" width="140" height="36" rx="3" fill="#fdf9f0" stroke="#1a1a20" stroke-opacity="0.7"/>
+              <line x1="18" y1="40" x2="118" y2="40" stroke="#1a1a20" stroke-opacity="0.3"/>
+              <line x1="18" y1="46" x2="92" y2="46" stroke="#1a1a20" stroke-opacity="0.2"/>
+              <line x1="18" y1="52" x2="104" y2="52" stroke="#1a1a20" stroke-opacity="0.2"/>
+            </g>
+          </g>
+
+          <!-- ===== Three folders (right) ===== -->
+          <g transform="translate(310, 60)">
+            <!-- Folder 1 -->
+            <g>
+              <path d="M0,12 L36,12 L46,22 L130,22 L130,86 L0,86 Z"
+                    fill="#c44e2c" fill-opacity="0.9" />
+              <path d="M0,12 L36,12 L46,22 L130,22"
+                    stroke="#9c3d22" stroke-width="1" fill="none"/>
+              <text x="14" y="60" font-family="Geist, sans-serif" font-size="13" font-weight="500" fill="#f4efe5">Compta</text>
+            </g>
+            <!-- Folder 2 -->
+            <g transform="translate(0, 110)">
+              <path d="M0,12 L36,12 L46,22 L130,22 L130,86 L0,86 Z"
+                    fill="#1a1a20" fill-opacity="0.92"/>
+              <path d="M0,12 L36,12 L46,22 L130,22"
+                    stroke="#000" stroke-opacity="0.3" stroke-width="1" fill="none"/>
+              <text x="14" y="60" font-family="Geist, sans-serif" font-size="13" font-weight="500" fill="#f4efe5">Photos</text>
+            </g>
+            <!-- Folder 3 -->
+            <g transform="translate(0, 220)">
+              <path d="M0,12 L36,12 L46,22 L130,22 L130,86 L0,86 Z"
+                    fill="#d9a47e" fill-opacity="0.95"/>
+              <path d="M0,12 L36,12 L46,22 L130,22"
+                    stroke="#9c3d22" stroke-opacity="0.5" stroke-width="1" fill="none"/>
+              <text x="14" y="60" font-family="Geist, sans-serif" font-size="13" font-weight="500" fill="#1a1a20">Projets</text>
+            </g>
+          </g>
+
+          <!-- ===== Dotted trajectory hints ===== -->
+          <g stroke="#1a1a20" stroke-opacity="0.18" stroke-width="1" fill="none" stroke-dasharray="2 4">
+            <path d="M178 130 C 230 110, 280 100, 305 92"/>
+            <path d="M178 130 C 230 180, 280 210, 305 212"/>
+            <path d="M178 130 C 230 250, 280 310, 305 322"/>
+          </g>
+
+          <!-- ===== Three "in-flight" files animating to each folder ===== -->
+          <g class="file-glide-1">
+            <rect x="170" y="120" width="62" height="22" rx="2" fill="#fdf9f0" stroke="#1a1a20" stroke-width="1"/>
+            <line x1="178" y1="130" x2="222" y2="130" stroke="#1a1a20" stroke-opacity="0.4"/>
+            <line x1="178" y1="135" x2="210" y2="135" stroke="#1a1a20" stroke-opacity="0.25"/>
+          </g>
+          <g class="file-glide-2">
+            <rect x="170" y="120" width="62" height="22" rx="2" fill="#fdf9f0" stroke="#1a1a20" stroke-width="1"/>
+            <line x1="178" y1="130" x2="222" y2="130" stroke="#1a1a20" stroke-opacity="0.4"/>
+            <line x1="178" y1="135" x2="210" y2="135" stroke="#1a1a20" stroke-opacity="0.25"/>
+          </g>
+          <g class="file-glide-3">
+            <rect x="170" y="120" width="62" height="22" rx="2" fill="#fdf9f0" stroke="#1a1a20" stroke-width="1"/>
+            <line x1="178" y1="130" x2="222" y2="130" stroke="#1a1a20" stroke-opacity="0.4"/>
+            <line x1="178" y1="135" x2="210" y2="135" stroke="#1a1a20" stroke-opacity="0.25"/>
+          </g>
+
+          <!-- Sparkle / "intelligence" mark -->
+          <g transform="translate(248, 470)" fill="#c44e2c">
+            <path d="M0 -8 L2 -2 L8 0 L2 2 L0 8 L-2 2 L-8 0 L-2 -2 Z"/>
+          </g>
+          <text x="270" y="475" font-family="Fraunces, serif" font-style="italic" font-size="14" fill="#4d4d56"
+                font-variation-settings="'SOFT' 100">learning…</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MARQUEE ================= -->
+<div class="marquee-bar" aria-hidden="true">
+  <div class="marquee">
+    <span>invoices to Compta <span class="ornament">⌁</span> screenshots to Captures <span class="ornament">⌁</span> contracts to Legal <span class="ornament">⌁</span> photos to Camera Roll <span class="ornament">⌁</span> receipts to Compta <span class="ornament">⌁</span> drafts to Inbox <span class="ornament">⌁</span></span>
+    <span>invoices to Compta <span class="ornament">⌁</span> screenshots to Captures <span class="ornament">⌁</span> contracts to Legal <span class="ornament">⌁</span> photos to Camera Roll <span class="ornament">⌁</span> receipts to Compta <span class="ornament">⌁</span> drafts to Inbox <span class="ornament">⌁</span></span>
+  </div>
+</div>
+
+<!-- ================= FEATURES ================= -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-head">
+      <div class="number reveal">
+        <span data-en="01 — What it does" data-fr="01 — Ce qu'il fait">01 — What it does</span>
+      </div>
+      <h2 class="reveal d1">
+        <span data-en="Three quiet things, " data-fr="Trois choses discrètes, ">Three quiet things, </span>
+        <em data-en="all day long." data-fr="toute la journée.">all day long.</em>
+      </h2>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature reveal d1">
+        <div class="step">01</div>
+        <div class="icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="20" stroke="#1a1a20" stroke-width="1.5"/>
+            <circle cx="24" cy="24" r="3" fill="#c44e2c"/>
+            <path d="M24 4 v6 M24 38 v6 M4 24 h6 M38 24 h6" stroke="#1a1a20" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <h3 data-en="It watches." data-fr="Il observe.">It watches.</h3>
+        <p data-en="Tidy lives in your tray. It silently monitors your Downloads folder. Nothing is uploaded, nothing leaves your machine."
+           data-fr="Tidy vit dans votre barre. Il surveille silencieusement votre dossier Téléchargements. Rien n'est uploadé, rien ne quitte votre machine.">
+          Tidy lives in your tray. It silently monitors your Downloads folder. Nothing is uploaded, nothing leaves your machine.
+        </p>
+      </div>
+
+      <div class="feature reveal d2">
+        <div class="step">02</div>
+        <div class="icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <path d="M6 36 C 14 24, 22 24, 24 30 C 26 36, 34 36, 42 24"
+                  stroke="#1a1a20" stroke-width="1.5" fill="none"/>
+            <circle cx="6" cy="36" r="3" fill="#1a1a20"/>
+            <circle cx="24" cy="30" r="3" fill="#c44e2c"/>
+            <circle cx="42" cy="24" r="3" fill="#1a1a20"/>
+          </svg>
+        </div>
+        <h3 data-en="It learns." data-fr="Il apprend.">It learns.</h3>
+        <p data-en="Every time you move a file by hand, Tidy remembers. After six examples across two destinations, a personal model trains in the background."
+           data-fr="Chaque fois que vous déplacez un fichier à la main, Tidy retient. Après six exemples sur deux destinations, un modèle personnel s'entraîne en arrière-plan.">
+          Every time you move a file by hand, Tidy remembers. After six examples across two destinations, a personal model trains in the background.
+        </p>
+      </div>
+
+      <div class="feature reveal d3">
+        <div class="step">03</div>
+        <div class="icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <rect x="8" y="10" width="24" height="30" rx="2" stroke="#1a1a20" stroke-width="1.5" fill="none"/>
+            <path d="M14 18 h12 M14 24 h12 M14 30 h8" stroke="#1a1a20" stroke-width="1.5"/>
+            <path d="M32 24 l8 -8 M40 16 l-4 -2 M40 16 l-2 4" stroke="#c44e2c" stroke-width="1.5" fill="none"/>
+          </svg>
+        </div>
+        <h3 data-en="It suggests." data-fr="Il suggère.">It suggests.</h3>
+        <p data-en="When a new file lands, Tidy quietly proposes where it probably belongs — only if it's confident enough. You stay in charge."
+           data-fr="Quand un nouveau fichier arrive, Tidy propose discrètement où il a probablement sa place — seulement s'il est suffisamment sûr. Vous gardez la main.">
+          When a new file lands, Tidy quietly proposes where it probably belongs — only if it's confident enough. You stay in charge.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="how" id="how">
+  <div class="container">
+    <div class="section-head">
+      <div class="number reveal">
+        <span data-en="02 — How it works" data-fr="02 — Comment ça marche">02 — How it works</span>
+      </div>
+      <h2 class="reveal d1">
+        <span data-en="A model of " data-fr="Un modèle de ">A model of </span>
+        <em data-en="your own habits." data-fr="vos propres habitudes.">your own habits.</em>
+      </h2>
+    </div>
+
+    <div class="how-steps">
+      <div class="how-step reveal d1">
+        <div class="index">01</div>
+        <h4 data-en="Install & run" data-fr="Installer & lancer">Install & run</h4>
+        <p data-en="One binary, no setup. Tidy appears in the tray and starts watching your Downloads folder."
+           data-fr="Un binaire, pas de config. Tidy apparaît dans la barre et surveille votre dossier Téléchargements.">
+          One binary, no setup. Tidy appears in the tray and starts watching your Downloads folder.
+        </p>
+      </div>
+      <div class="how-step reveal d2">
+        <div class="index">02</div>
+        <h4 data-en="Move files manually" data-fr="Rangez normalement">Move files manually</h4>
+        <p data-en="Keep sorting files the way you always do. Tidy records each (file → destination) pair locally."
+           data-fr="Continuez à ranger comme d'habitude. Tidy enregistre chaque paire (fichier → destination) localement.">
+          Keep sorting files the way you always do. Tidy records each (file → destination) pair locally.
+        </p>
+      </div>
+      <div class="how-step reveal d3">
+        <div class="index">03</div>
+        <h4 data-en="It trains itself" data-fr="Il s'entraîne seul">It trains itself</h4>
+        <p data-en="Once enough examples are in, a scikit-learn classifier trains in the background. Char n-grams on the filename, plus extension, size and type."
+           data-fr="Quand assez d'exemples sont là, un classifieur scikit-learn s'entraîne en arrière-plan. N-grammes de caractères sur le nom, plus extension, taille et type.">
+          Once enough examples are in, a scikit-learn classifier trains in the background. Char n-grams on the filename, plus extension, size and type.
+        </p>
+      </div>
+      <div class="how-step reveal d4">
+        <div class="index">04</div>
+        <h4 data-en="Quiet suggestions" data-fr="Suggestions discrètes">Quiet suggestions</h4>
+        <p data-en="When confidence passes 65 %, Tidy nudges you with a notification. No auto-move. No surprises."
+           data-fr="Quand la confiance dépasse 65 %, Tidy vous envoie une notification. Aucun déplacement auto. Aucune surprise.">
+          When confidence passes 65 %, Tidy nudges you with a notification. No auto-move. No surprises.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DOWNLOAD ================= -->
+<section class="download" id="download">
+  <div class="container">
+    <div class="section-head">
+      <div class="number reveal">
+        <span data-en="03 — Download" data-fr="03 — Télécharger">03 — Download</span>
+      </div>
+      <h2 class="reveal d1">
+        <span data-en="Free. " data-fr="Gratuit. ">Free. </span>
+        <em data-en="On every desktop." data-fr="Sur tous les bureaux.">On every desktop.</em>
+      </h2>
+    </div>
+
+    <div class="download-grid">
+      <a class="dl-card reveal d1"
+         href="https://github.com/fdevelopment-department-ai/tidy-releases/releases/latest/download/Tidy-windows-x64.exe">
+        <div class="os-glyph">
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="currentColor">
+            <rect x="2" y="2" width="16" height="16"/>
+            <rect x="20" y="2" width="16" height="16"/>
+            <rect x="2" y="20" width="16" height="16"/>
+            <rect x="20" y="20" width="16" height="16"/>
+          </svg>
+        </div>
+        <h4>Windows</h4>
+        <div class="meta">.exe · 10/11 · x64</div>
+      </a>
+
+      <a class="dl-card reveal d2"
+         href="https://github.com/fdevelopment-department-ai/tidy-releases/releases/latest/download/Tidy-macos.zip">
+        <div class="os-glyph">
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="currentColor">
+            <path d="M26 4c0 4-3 7-7 7 0-4 3-7 7-7z M30 26c-2 5-4 8-7 8-3 0-4-2-7-2s-5 2-7 2c-3 0-7-6-7-12 0-7 5-11 9-11 3 0 5 2 8 2 2 0 4-2 7-2 3 0 6 2 7 5-4 2-5 7-3 10z"/>
+          </svg>
+        </div>
+        <h4>macOS</h4>
+        <div class="meta">.app · 11+ · universal</div>
+      </a>
+
+      <a class="dl-card reveal d3"
+         href="https://github.com/fdevelopment-department-ai/tidy-releases/releases/latest/download/Tidy-linux-x64">
+        <div class="os-glyph">
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="currentColor">
+            <path d="M19 2c-5 0-8 4-8 9 0 3 1 5 1 8 0 4-6 5-6 10 0 4 6 7 13 7s13-3 13-7c0-5-6-6-6-10 0-3 1-5 1-8 0-5-3-9-8-9z M16 11c1 0 2 1 2 2s-1 2-2 2-2-1-2-2 1-2 2-2z M22 11c1 0 2 1 2 2s-1 2-2 2-2-1-2-2 1-2 2-2z"/>
+          </svg>
+        </div>
+        <h4>Linux</h4>
+        <div class="meta">binary · glibc 2.31+ · x64</div>
+      </a>
+    </div>
+
+    <p class="dl-note reveal d2"
+       data-en='Or browse <a href="https://github.com/fdevelopment-department-ai/tidy-releases/releases">all releases on GitHub</a>. Need help? See the <a href="https://github.com/fdevelopment-department-ai/tidy-releases/blob/main/docs/user-guide.en.md">user guide</a>.'
+       data-fr='Ou voir <a href="https://github.com/fdevelopment-department-ai/tidy-releases/releases">toutes les versions sur GitHub</a>. Besoin d&apos;aide ? Voir le <a href="https://github.com/fdevelopment-department-ai/tidy-releases/blob/main/docs/user-guide.fr.md">guide utilisateur</a>.'>
+       Or browse <a href="https://github.com/fdevelopment-department-ai/tidy-releases/releases">all releases on GitHub</a>. Need help? See the <a href="https://github.com/fdevelopment-department-ai/tidy-releases/blob/main/docs/user-guide.en.md">user guide</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ================= WHY ================= -->
+<section class="why">
+  <div class="container">
+    <div class="why-grid">
+      <div class="reveal">
+        <h2>
+          <span data-en="Your habits " data-fr="Vos habitudes ">Your habits </span>
+          <em data-en="stay yours." data-fr="restent les vôtres.">stay yours.</em>
+        </h2>
+      </div>
+      <div class="reveal d1">
+        <p data-en="Tidy doesn't read the contents of your files. It looks at the name, the extension, the size, and a magic-byte sniff. That's it."
+           data-fr="Tidy ne lit pas le contenu de vos fichiers. Il regarde le nom, l'extension, la taille, et fait une détection par bytes magiques. C'est tout.">
+          Tidy doesn't read the contents of your files. It looks at the name, the extension, the size, and a magic-byte sniff. That's it.
+        </p>
+        <p data-en="The trained model lives on your disk, in your user data folder. It is never sent anywhere. Deleting that folder erases everything Tidy has learned."
+           data-fr="Le modèle entraîné vit sur votre disque, dans votre dossier de données. Il n'est jamais envoyé nulle part. Supprimer ce dossier efface tout ce que Tidy a appris.">
+          The trained model lives on your disk, in your user data folder. It is never sent anywhere. Deleting that folder erases everything Tidy has learned.
+        </p>
+        <p class="signature"
+           data-en="— Fdevelopment, made in France"
+           data-fr="— Fdevelopment, fait en France">
+          — Fdevelopment, made in France
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="site">
+  <div class="container">
+    <div class="row">
+      <div>
+        <a href="https://github.com/fdevelopment-department-ai/tidy-releases">GitHub</a>
+        <a href="https://github.com/fdevelopment-department-ai/tidy-releases/blob/main/docs/user-guide.en.md" data-en="Docs" data-fr="Documentation">Docs</a>
+        <a href="https://github.com/fdevelopment-department-ai/tidy-releases/releases" data-en="Releases" data-fr="Versions">Releases</a>
+        <a href="mailto:contact@fdevelopment.fr">contact@fdevelopment.fr</a>
+      </div>
+      <div class="mono">
+        <span data-en="Tidy · freeware · " data-fr="Tidy · freeware · ">Tidy · freeware · </span>
+        <span id="footer-version">v0.1.0</span>
+        <span> · © Fdevelopment</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // ---- Language toggle ----
+  const STORAGE_KEY = 'tidy-lang';
+  const buttons = document.querySelectorAll('.lang-toggle button');
+  function applyLang(lang) {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-en]').forEach(el => {
+      const v = el.getAttribute('data-' + lang);
+      if (v != null) {
+        // Use innerHTML for the dl-note that contains anchors
+        if (el.classList.contains('dl-note') || v.includes('<a ')) {
+          el.innerHTML = v;
+        } else {
+          el.textContent = v;
+        }
+      }
+    });
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) {}
+  }
+  buttons.forEach(b => b.addEventListener('click', () => applyLang(b.dataset.lang)));
+  // Initial: stored, else navigator
+  let initial = null;
+  try { initial = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+  if (!initial) {
+    initial = (navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  }
+  applyLang(initial);
+
+  // ---- Reveal on scroll ----
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+  }
+
+  // ---- Live version from GitHub Releases (graceful fallback) ----
+  fetch('https://api.github.com/repos/fdevelopment-department-ai/tidy-releases/releases/latest')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data && data.tag_name) {
+        const tag = data.tag_name;
+        const v = document.getElementById('version-pill');
+        const fv = document.getElementById('footer-version');
+        if (v) v.textContent = tag;
+        if (fv) fv.textContent = tag;
+      }
+    })
+    .catch(() => { /* keep fallback */ });
+})();
+</script>
+
+</body>
+</html>
